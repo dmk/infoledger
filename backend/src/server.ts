@@ -5,7 +5,7 @@ import { corsMiddleware } from "./middleware/cors";
 
 console.log("Starting server on port 4891...");
 
-startVerificationTask(15);
+startVerificationTask(0.1);
 
 serve({
   port: 4891,
