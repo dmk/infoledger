@@ -13,6 +13,7 @@
     "@lacrypta/typescript-opentimestamps": "^0.1.0",
     "@opentimestamps/typescript-opentimestamps": "github:opentimestamps/typescript-opentimestamps",
     "axios": "^1.7.9",
+    "bitcoin-core": "^4.2.0",
     "sqlite3": "^5.1.7"
   }
 }

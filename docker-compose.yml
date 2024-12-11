@@ -1,0 +1,19 @@
+services:
+  bitcoin:
+    image: lncm/bitcoind:v26.0
+    command:
+      - -regtest=1
+      - -rpcallowip=0.0.0.0/0
+      - -rpcbind=0.0.0.0
+      - -rpcuser=bitcoin
+      - -rpcpassword=bitcoin
+      - -maxtxfee=0.1
+      - -fallbackfee=0.00001
+      - -txindex=1
+    ports:
+      - "18443:18443"  # RPC
+      - "18444:18444"  # P2P
+    volumes:
+      - bitcoin_data:/data
+volumes:
+  bitcoin_data:

@@ -1,24 +1,19 @@
-import db from "../db/index.js";
+import db from "../db";
 import { createHash, randomUUID } from "crypto";
-import {
-  read, write,
-  verify, verifiers,
-  submit,
-} from '@lacrypta/typescript-opentimestamps';
+import { createBitcoinAnchor } from "../lib/anchors/providers/bitcoin";
+import { LedgerEntry } from "./types";
 
-export interface LedgerEntry {
-  id: string;
-  entityId: string;
-  data: string;
-  timestamp: number;
-  previousHash: string;
-  hash: string;
-  timestampProof?: string;  // Store the OpenTimestamps proof
-  verified?: boolean;
-}
-
-// Example curl request to add an entry:
-//curl -X POST http://localhost:4891/entries -H "Content-Type: application/json" -d '{"entityId": "user123","data": {"message": "Hello World","amount": 100,"recipient": "user456"}}'
+// Initialize Bitcoin anchor
+const bitcoinAnchor = createBitcoinAnchor({
+  mode: 'regtest',
+  rpcHost: '127.0.0.1',
+  rpcPort: 18443,
+  rpcAuth: {
+    username: 'bitcoin',
+    password: 'bitcoin'
+  },
+  blocksRequired: 50
+});
 
 export async function addEntry(entityId: string, dataObj: LedgerEntry): Promise<LedgerEntry> {
   // Get the last entry first (for previousHash)
@@ -45,21 +40,18 @@ export async function addEntry(entityId: string, dataObj: LedgerEntry): Promise<
   console.log('hash', hash);
 
   try {
-    // Create OpenTimestamps proof using the typescript-opentimestamps library
-    const { timestamp } = await submit('sha256', Buffer.from(hash, 'hex'));
+    // Create Bitcoin anchor proof
+    const proof = await bitcoinAnchor.anchor(hash);
  
-    console.log('timestamp', write(timestamp))
+    console.log('proof', proof);
 
     // Prepare the complete entry
     const entry: LedgerEntry = { 
       ...entryWithoutHash,
       hash,
       timestampProof: JSON.stringify({
-        version: timestamp.version,
-        fileHash: {
-          algorithm: timestamp.fileHash.algorithm,
-          value: Buffer.from(write(timestamp)).toString('base64')
-        }
+        type: 'bitcoin',
+        proof
       })
     };
 
@@ -84,7 +76,7 @@ export async function addEntry(entityId: string, dataObj: LedgerEntry): Promise<
 
     return entry;
   } catch (error) {
-    console.error('Failed to create OpenTimestamps proof:', error);
+    console.error('Failed to create Bitcoin anchor:', error);
     throw new Error('Failed to create timestamp proof');
   }
 }
@@ -100,18 +92,22 @@ export async function verifyEntry(hash: string): Promise<boolean> {
   }
 
   try {
-    const parsedProof = JSON.parse(entry.timestampProof);
-    const timestamp = read(Buffer.from(parsedProof.fileHash.value, 'base64'));
-
-    const result = await verify(timestamp, verifiers);
-
-    return Object.keys(result.attestations).length > 0;
+    const { proof } = JSON.parse(entry.timestampProof);
+    return await bitcoinAnchor.verify(proof);
   } catch (error) {
     console.error('Verification failed:', error);
     return false;
   }
 }
 
-export function getEntries(): LedgerEntry[] {
-  return db.query("SELECT * FROM ledger_entries").all() as LedgerEntry[];
+export function getEntries(): { [entityId: string]: LedgerEntry[] } {
+  const entries = db.query("SELECT * FROM ledger_entries ORDER BY entityId, timestamp").all() as LedgerEntry[];
+  
+  return entries.reduce((acc, entry) => {
+    if (!acc[entry.entityId]) {
+      acc[entry.entityId] = [];
+    }
+    acc[entry.entityId].push(entry);
+    return acc;
+  }, {} as { [entityId: string]: LedgerEntry[] });
 }

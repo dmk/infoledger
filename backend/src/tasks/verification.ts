@@ -1,5 +1,6 @@
-import db from "../db/index.js";
-import { LedgerEntry, verifyEntry } from "../ledger/ledger.js";
+import db from "../db";
+import { verifyEntry } from "../ledger";
+import { LedgerEntry } from "../ledger";
 
 export async function startVerificationTask(intervalMinutes: number = 15) {
   // Initial check
